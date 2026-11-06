@@ -116,6 +116,43 @@ depend:
 	$(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
 .PHONY : depend
 
+#=============================================================================
+# Target rules for targets named senseglove_reader
+
+# Build rule for target.
+senseglove_reader: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 senseglove_reader
+.PHONY : senseglove_reader
+
+# fast build rule for target.
+senseglove_reader/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/senseglove_reader.dir/build.make CMakeFiles/senseglove_reader.dir/build
+.PHONY : senseglove_reader/fast
+
+teleop.o: teleop.cpp.o
+.PHONY : teleop.o
+
+# target to build an object file
+teleop.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/senseglove_reader.dir/build.make CMakeFiles/senseglove_reader.dir/teleop.cpp.o
+.PHONY : teleop.cpp.o
+
+teleop.i: teleop.cpp.i
+.PHONY : teleop.i
+
+# target to preprocess a source file
+teleop.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/senseglove_reader.dir/build.make CMakeFiles/senseglove_reader.dir/teleop.cpp.i
+.PHONY : teleop.cpp.i
+
+teleop.s: teleop.cpp.s
+.PHONY : teleop.s
+
+# target to generate assembly for a file
+teleop.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/senseglove_reader.dir/build.make CMakeFiles/senseglove_reader.dir/teleop.cpp.s
+.PHONY : teleop.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -124,6 +161,10 @@ help:
 	@echo "... depend"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... senseglove_reader"
+	@echo "... teleop.o"
+	@echo "... teleop.i"
+	@echo "... teleop.s"
 .PHONY : help
 
 

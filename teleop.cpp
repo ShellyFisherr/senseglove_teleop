@@ -1,35 +1,38 @@
 
 #include <SenseGlove/Core/HandLayer.hpp>
 #include <SenseGlove/Core/HandPose.hpp>
+#include <SenseGlove/Core/Vect3D.hpp>
 #include <SenseGlove/Core/SenseCom.hpp>
-#include <SenseGlove/Core/Nova2Glove.hpp>
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
-#include <cmath>
 #include <csignal>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <locale>
-#include <sstream>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 #include <config.hpp>
 
 using namespace SGCore;
 
+using Clock = std::chrono::steady_clock;
+
 static constexpr double UPDATE_FREQUENCY = Config::UPDATE_FREQUENCY_HZ;
-
 static constexpr bool RIGHT_HAND = Config::TRACK_RIGHT_HAND;
-
 static constexpr const char* CSV_FILENAME = Config::CSV_FILENAME;
 
+static constexpr size_t FINGER_COUNT = 5;
+static constexpr size_t JOINTS_PER_FINGER = 4;
+static constexpr size_t COORDS_PER_JOINT = 3;
+static constexpr size_t FLOAT_COUNT =
+    FINGER_COUNT * JOINTS_PER_FINGER * COORDS_PER_JOINT;
 
 struct HandJointData
 {
@@ -40,11 +43,8 @@ struct HandJointData
 
 using FingerData = std::vector<HandJointData>;
 using HandData = std::vector<FingerData>;
-using Clock = std::chrono::steady_clock;
-
 
 static std::atomic<bool> running{true};
-
 
 void signalHandler(int signal)
 {
@@ -54,56 +54,55 @@ void signalHandler(int signal)
     }
 }
 
-bool extractJoinPositions(
+bool extractJointPositions(
     const SGCore::HandPose& handPose,
     HandData& output)
-
 {
     output.clear();
 
     const auto& positions = handPose.GetJointPositions();
 
-    if (positions.empty())
+    if (positions.size() != FINGER_COUNT)
     {
         return false;
     }
 
-    output.reserve(positions.size());
+    output.reserve(FINGER_COUNT);
 
     for (const auto& finger : positions)
     {
-        FingerData fingerData;
+        if (finger.size() != JOINTS_PER_FINGER)
+        {
+            return false;
+        }
 
-        fingerData.reserve(finger.size());
+        FingerData fingerData;
+        fingerData.reserve(JOINTS_PER_FINGER);
 
         for (const auto& joint : finger)
         {
-            HandJointData p;
-
-            p.x = joint.GetX();
-            p.y = joint.GetY();
-            p.z = joint.GetZ();
+            HandJointData p{
+                joint.GetX(),
+                joint.GetY(),
+                joint.GetZ()
+            };
 
             fingerData.push_back(p);
         }
 
         output.push_back(std::move(fingerData));
     }
+
     return true;
 }
 
-
-void writeCsvHeader(
-    std::ofstream& csv,
-    const HandData& hand)
+void writeCsvHeader(std::ofstream& csv)
 {
-    csv << "time_s,sequence,finger_count";
+    csv << "timestamp_ns";
 
-    for (size_t f = 0; f < hand.size(); ++f)
+    for (size_t f = 0; f < FINGER_COUNT; ++f)
     {
-        csv << ",finger" << f << "_joint_count";
-
-        for (size_t j = 0; j < hand[f].size(); ++j)
+        for (size_t j = 0; j < JOINTS_PER_FINGER; ++j)
         {
             csv << ",finger" << f << "_joint" << j << "_x"
                 << ",finger" << f << "_joint" << j << "_y"
@@ -111,70 +110,93 @@ void writeCsvHeader(
         }
     }
 
-    csv << "\n";
+    csv << '\n';
 }
 
 void writeCsvRow(
     std::ofstream& csv,
-    double elapsedSeconds,
-    uint64_t sequence,
+    uint64_t timestampNs,
     const HandData& hand)
 {
-    csv << std::setprecision(6)
-        << elapsedSeconds
-        << "," << sequence
-        << "," << hand.size();
+    csv << timestampNs << std::setprecision(7);
 
     for (const auto& finger : hand)
     {
-        csv << "," << finger.size();
-
         for (const auto& joint : finger)
         {
-            csv << "," << joint.x
-                << "," << joint.y
-                << "," << joint.z; 
+            csv << ',' << joint.x
+                << ',' << joint.y
+                << ',' << joint.z;
         }
     }
-    csv << "\n";
+
+    csv << '\n';
 }
 
-
-void processHandData(
-    const HandData& hand,
-    uint64_t sequence)
-
+bool writeBinaryFrame(
+    uint64_t timestampNs,
+    const HandData& hand)
 {
-    if (sequence % 60 == 0)
+    float values[FLOAT_COUNT];
+
+    size_t index = 0;
+
+    for (const auto& finger : hand)
     {
-        std::cout
-        << "sequence: " << sequence << " | "
-        << "Finger groups: " << hand.size() << "\n";
+        for (const auto& joint : finger)
+        {
+            values[index++] = joint.x;
+            values[index++] = joint.y;
+            values[index++] = joint.z;
+        }
     }
 
+    if (index != FLOAT_COUNT)
+    {
+        return false;
+    }
+
+    std::cout.write(
+        reinterpret_cast<const char*>(&timestampNs),
+        sizeof(timestampNs));
+
+    std::cout.write(
+        reinterpret_cast<const char*>(values),
+        sizeof(values));
+
+    return static_cast<bool>(std::cout);
 }
 
-
-int main()
+int main(int argc, char* argv[])
 {
+    bool streamMode = false;
+
+    if (argc == 2 && std::string(argv[1]) == "--stream")
+    {
+        streamMode = true;
+    }
+    else if (argc != 1)
+    {
+        std::cerr << "Usage: senseglove_reader [--stream]\n";
+        return 1;
+    }
+
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
 
-    std::cout
-    << "=====================================\n"
-    << "       SenseGlove Nova 2 Linux\n"
-    << "=====================================\n";
+    std::cerr
+        << "=====================================\n"
+        << "       SenseGlove Nova 2 Linux\n"
+        << "=====================================\n"
+        << "Mode: " << (streamMode ? "Binary stream" : "CSV logging") << '\n'
+        << "Rate: " << UPDATE_FREQUENCY << " Hz\n"
+        << "Hand: " << (RIGHT_HAND ? "Right" : "Left") << '\n';
 
-    std::cout
-    << "\nRate: " << UPDATE_FREQUENCY << " HZ\n"
-    << "Hand: " << (RIGHT_HAND ? "Right" : "Left") << "\n";
-
-
-    std::cout << "\nStarting SenseCom...\n";
+    std::cerr << "\nStarting SenseCom...\n";
 
     SGCore::SenseCom::StartupSenseCom();
 
-    std::cout << "Waiting for SenseCom scanning...\n";
+    std::cerr << "Waiting for SenseCom scanning...\n";
 
     while (running.load() && !SGCore::SenseCom::ScanningActive())
     {
@@ -186,11 +208,11 @@ int main()
         return 0;
     }
 
-    std::cout << "SenseCom scanning active.\n";
+    std::cerr << "SenseCom scanning active.\n";
+    std::cerr << "Waiting for Nova 2 connection...\n";
 
-    std::cout << "\nWaiting for Nova 2 Connection...\n";
-
-    while (running.load() && !SGCore::HandLayer::DeviceConnected(RIGHT_HAND))
+    while (running.load() &&
+           !SGCore::HandLayer::DeviceConnected(RIGHT_HAND))
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
@@ -200,43 +222,41 @@ int main()
         return 0;
     }
 
-    std::cout << "Glove Connected.\n";
-
+    std::cerr << "Glove connected.\n";
 
     std::ofstream csv;
 
-    csv.open(CSV_FILENAME);
-
-    if (!csv.is_open())
+    if (!streamMode)
     {
-        std::cerr << "Could not open CSV file: "
-                  << CSV_FILENAME << "\n";
+        csv.open(CSV_FILENAME);
 
-        return 1;
+        if (!csv.is_open())
+        {
+            std::cerr << "Could not open CSV file: "
+                      << CSV_FILENAME << '\n';
+            return 1;
+        }
+
+        csv.imbue(std::locale::classic());
+        writeCsvHeader(csv);
+
+        std::cerr << "CSV logging: " << CSV_FILENAME << '\n';
     }
 
-    csv.imbue(std::locale::classic());
+    if (streamMode)
+    {
+        // stdout is reserved exclusively for binary measurement frames.
+        std::cout.sync_with_stdio(false);
+    }
 
-    std::cout
-        << "CSV logging: " << CSV_FILENAME << "\n";
-
-
-    const auto startTime = Clock::now();
-
-    const auto period = std::chrono::duration_cast(Clock::duration)(
+    const auto period = std::chrono::duration_cast<Clock::duration>(
         std::chrono::duration<double>(1.0 / UPDATE_FREQUENCY));
 
     auto nextTick = Clock::now();
 
     uint64_t sequence = 0;
 
-    bool csvHeaderWritten = false;
-
-    HandData previousShape;
-
-    std::cout  
-        << "\nStating Data processing...\n"
-        << "Press CTRL+C to stop.\n\n";
+    std::cerr << "Starting data processing. Press CTRL+C to stop.\n";
 
     while (running.load())
     {
@@ -244,19 +264,21 @@ int main()
 
         if (!SGCore::HandLayer::DeviceConnected(RIGHT_HAND))
         {
-            std::cerr << "\nGlove Disconnected. Waiting...\n";
+            std::cerr << "Glove disconnected. Waiting...\n";
 
             const auto disconnectTime = Clock::now();
 
-            while (running.load() && !SGCore::HandLayer::DeviceConnected(RIGHT_HAND))
+            while (running.load() &&
+                   !SGCore::HandLayer::DeviceConnected(RIGHT_HAND))
             {
-                const double elapsedDisconnect = std::chrono::duration<double>(
+                const double elapsed = std::chrono::duration<double>(
                     Clock::now() - disconnectTime).count();
 
-                if (elapsedDisconnect > 30.0)
+                if (elapsed > 30.0)
                 {
-                    std::cerr << "\nGlove Disconnected for too long. Shutting Down...\n";
+                    std::cerr << "Glove disconnected for 30 seconds. Stopping.\n";
                     running.store(false);
+                    break;
                 }
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -267,16 +289,13 @@ int main()
                 break;
             }
 
-            std::cout << "Glove reconnected\n";
-
+            std::cerr << "Glove reconnected.\n";
             nextTick = Clock::now();
         }
 
         SGCore::HandPose handPose;
 
-        const bool poseAvailable = SGCore::HandLayer::GetHandPose(RIGHT_HAND, handPose);
-
-        if (!poseAvailable)
+        if (!SGCore::HandLayer::GetHandPose(RIGHT_HAND, handPose))
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
             continue;
@@ -284,73 +303,46 @@ int main()
 
         HandData hand;
 
-        if (!extractJoinPositions(handPose, hand))
+        if (!extractJointPositions(handPose, hand))
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
             continue;
         }
 
-        if (!csvHeaderWritten)
+        const auto now = Clock::now();
+
+        const uint64_t timestampNs =
+            static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    now.time_since_epoch()).count());
+
+        bool success = true;
+
+        if (streamMode)
         {
-            writeCsvHeader(csv, hand);
-
-            previousShape = hand;
-
-            csvHeaderWritten = true;
-
-            std::cout
-                << "\nDetected hand structure:\n"
-                << "Finger groups: " << hand.size() << "\n";
-
-            for (size_t f = 0; f < hand.size(); ++f)
-            {
-                std::cout
-                    << "finger group " << f << ": "
-                    << hand[f].size() << "positions\n";
-            }
-
-            std::cout << "\n";
+            success = writeBinaryFrame(timestampNs, hand);
         }
         else
         {
-            bool shapeChanged = hand.size() != previousShape.size();
+            writeCsvRow(csv, timestampNs, hand);
 
-            if (!shapeChanged)
-            {
-                for (size_t f = 0; f < hand.size(); ++f)
-                {
-                    if (hand[f].size() != previousShape[f].size())
-                    {
-                        shapeChanged = true;
-                        break;
-                    }
-                }
-            }
-
-            if (shapeChanged)
-            {
-                std::cerr << "\nError: Hand joint structure changed. Skipping sample\n";
-                continue;
-            }
-
-            ++sequence;
-
-            const auto now = Clock::now();
-
-            const double elapsedSeconds = std::chrono::duration<double>(now - startTime).count();
-
-            processHandData(hand, sequence);
-
-            writeCsvRow(
-                csv,
-                elapsedSeconds,
-                sequence,
-                hand);
-
-            if (sequence % 60 == 0)
+            if (++sequence % 60 == 0)
             {
                 csv.flush();
             }
+        }
+
+        if (!success)
+        {
+            std::cerr << "Failed to write measurement frame.\n";
+            break;
+        }
+
+        ++sequence;
+
+        if (sequence % 60 == 0)
+        {
+            std::cerr << "Frames: " << sequence << '\n';
         }
 
         std::this_thread::sleep_until(nextTick);
@@ -361,17 +353,15 @@ int main()
         }
     }
 
-    
-    std::cout << "\nStopping SenseGlove...\n";
+    std::cerr << "\nStopping SenseGlove reader...\n";
 
-    if (csv.open())
+    if (csv.is_open())
     {
         csv.flush();
         csv.close();
     }
 
-    std::cout << "Input stoppen.\n"
-              << "Samples collected: " << sequence << "\n";
+    std::cerr << "Samples collected: " << sequence << '\n';
 
     return 0;
 }
