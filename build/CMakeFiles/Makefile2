@@ -54,10 +54,10 @@ RM = /usr/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/hamgist/senseglove/senseglove_teleop
+CMAKE_SOURCE_DIR = /home/hamgist/RobotHand/senseglove/senseglove_teleop
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/hamgist/senseglove/senseglove_teleop/build
+CMAKE_BINARY_DIR = /home/hamgist/RobotHand/senseglove/senseglove_teleop/build
 
 #=============================================================================
 # Directory level rules for the build root directory
@@ -81,14 +81,14 @@ clean: CMakeFiles/senseglove_reader.dir/clean
 CMakeFiles/senseglove_reader.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/senseglove_reader.dir/build.make CMakeFiles/senseglove_reader.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/senseglove_reader.dir/build.make CMakeFiles/senseglove_reader.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/hamgist/senseglove/senseglove_teleop/build/CMakeFiles --progress-num=1,2 "Built target senseglove_reader"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/hamgist/RobotHand/senseglove/senseglove_teleop/build/CMakeFiles --progress-num=1,2 "Built target senseglove_reader"
 .PHONY : CMakeFiles/senseglove_reader.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/senseglove_reader.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/hamgist/senseglove/senseglove_teleop/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/hamgist/RobotHand/senseglove/senseglove_teleop/build/CMakeFiles 2
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/senseglove_reader.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/hamgist/senseglove/senseglove_teleop/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/hamgist/RobotHand/senseglove/senseglove_teleop/build/CMakeFiles 0
 .PHONY : CMakeFiles/senseglove_reader.dir/rule
 
 # Convenience name for target.

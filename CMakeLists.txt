@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # SenseGlove SDK location
 set(SENSEGLOVE_API
-    "$ENV{HOME}/senseglove/SenseGlove-API"
+    "$ENV{HOME}/RobotHand/senseglove/SenseGlove-API"
 )
 
 # Linux x86-64 SDK libraries
