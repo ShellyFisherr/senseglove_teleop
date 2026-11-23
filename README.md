@@ -64,6 +64,11 @@ The SenseCom program for linux is found in
 ```
 Right-click `SenseCom.x86_64`, go to `properties` and enable `Executable as program` so linux knows this is a program to run. Opening it now Runs the SenseCom program. If you need more help in connecting the glove to the program, A more in detail guide from the official creators can be found [On the official page](https://unreal.docs.senseglove.com/2.9/getting-started/sensecom/bluetooth-low-energy/gnu-linux.html)
 
+To open the file, you can either double-click it, but it is adviced to open it via the command window using
+```
+~/RobotHand/senseglove/SenseGlove-API/SenseCom/SenseCom_Linux_1_8_4/SenseCom.x86_64
+```
+
 
 with the API installed now, the added reader can be installed as well using
 ```bash
